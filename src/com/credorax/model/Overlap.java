@@ -14,6 +14,17 @@ public class Overlap extends Interval {
 		super(interval);
 	}
 
+	public Overlap(Overlap overlap) {
+		super(overlap);
+		this.strength = overlap.getStrength();
+	}
+
+	public void setAs(Overlap overlap) {
+		this.start = overlap.start;
+		this.end = overlap.end;
+		this.strength = overlap.getStrength();
+	}
+
 	public long getStrength() {
 		return strength;
 	}
@@ -26,14 +37,19 @@ public class Overlap extends Interval {
 
 	@Override
 	public String toString() {
-		return "Overlap("
-				+ "start=" + this.start
-				+ ", end=" + this.end
-				+ ", strength=" + this.strength
+		return "Overlap ("
+				+ "start = " + this.start
+				+ ", end = " + this.end
+				+ ", strength = " + this.strength
 				+ ")";
 	}
 
 	public void incrementStrength() {
 		strength++;
 	}
+	public void decrementByValue(Long value) {
+		strength -= value;
+	}
+
+	public void decrement() {strength--;}
 }
