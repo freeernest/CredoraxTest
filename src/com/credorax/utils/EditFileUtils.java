@@ -70,6 +70,24 @@ public class EditFileUtils {
         return 0;
     }
 
+    static public long getFinishedCallsCounter(long targetMillisecond) throws IOException {
+        RandomAccessFile r = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH), "rw");
+        RandomAccessFile rtemp = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH + "~"), "rw");
+        long fileSize = r.length();
+
+        r.seek(0);
+        String finishTimeLine;
+
+        do {
+            if((finishTimeLine = r.readLine()) == null
+                    || Long.valueOf(finishTimeLine.substring(0, finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR))) == targetMillisecond){
+                return Long.valueOf(finishTimeLine.substring(finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR) + 1));
+            }
+        } while(r.getFilePointer() < fileSize);
+
+        return 0;
+    }
+
     static public void insert(long offset, long targetMillisecond) throws IOException {
         RandomAccessFile r = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH), "rw");
         RandomAccessFile rtemp = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH + "~"), "rw");

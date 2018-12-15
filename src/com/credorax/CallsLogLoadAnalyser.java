@@ -69,27 +69,19 @@ public class CallsLogLoadAnalyser {
 					if(nextInterval.getEnd() < currentOverlap.getEnd()){
 						currentOverlap.setEnd(nextInterval.getEnd());
 					}
-					incrementCurrentOverlapStrength();
 				} else {// can't be less only bigger or equal
 
 
-					processAllFinishedCallsTillSomeTime(nextInterval.getStart());
-					//processAllFinishedCallsTillSomeTimeAtTextFile(nextInterval.getStart());
-
+					Long nextFinish = processAllFinishedCallsTillStartOfInterval(nextInterval);
+					//Long nextFinish = processAllFinishedCallsTillSomeTimeAtTextFile(nextInterval);
 
 					currentOverlap.setStart(nextInterval.getStart());
 
-					if(nextInterval.getEnd() < currentOverlap.getEnd()) {
-						currentOverlap.setEnd(nextInterval.getEnd());
-					}
-					if(nextInterval.getStart() >= currentOverlap.getEnd()){
-						currentOverlap.setEnd(nextInterval.getEnd());
-					}else {
-						incrementCurrentOverlapStrength();
-					}
+					currentOverlap.setEnd(nextFinish);
 
 					currentMillisecond = nextInterval.getStart();
 				}
+				incrementCurrentOverlapStrength();
 			}
 
 			System.out.println("Maximum " + maxOverlap);
@@ -107,22 +99,38 @@ public class CallsLogLoadAnalyser {
         }
 	}
 
-	private void processAllFinishedCallsTillSomeTime(long someTime) {
-		for(long i = currentMillisecond; i<=someTime; i++) {
+	private long processAllFinishedCallsTillStartOfInterval(Interval interval) {
+		long i;
+		for(i = currentMillisecond; i<=interval.getStart(); i++) {
 			if (finishesCountMap.get(i) != null) {
 				currentOverlap.decrementByValue(finishesCountMap.get(i));
 				finishesCountMap.remove(i);
 			}
 		}
+
+		for(long j = i; j<=interval.getEnd(); j++) {
+			if (finishesCountMap.get(j) != null) {
+				return j;
+			}
+		}
+		return interval.getEnd();
 	}
 
-	private void processAllFinishedCallsTillSomeTimeAtTextFile(long someTime) throws IOException {
+	private Long processAllFinishedCallsTillSomeTimeAtTextFile(Interval interval) throws IOException {
 		Long countToReduce;
-		for(long i = currentMillisecond; i<=someTime; i++) {
-			if ((countToReduce = EditFileUtils.getFinishedCallsCounterAndRemoveFromFile(someTime)) != null) {
+		long i;
+		for(i = currentMillisecond; i<=interval.getStart(); i++) {
+			if ((countToReduce = EditFileUtils.getFinishedCallsCounterAndRemoveFromFile(interval.getStart())) != null) {
 				currentOverlap.decrementByValue(countToReduce);
 			}
 		}
+
+		for(long j = i; j<=interval.getEnd(); j++) {
+			if ( EditFileUtils.getFinishedCallsCounter(j)!= 0) {
+				return j;
+			}
+		}
+		return interval.getEnd();
 	}
 
 	private void incrementFinishTimeCounter(Long finishTime) {
