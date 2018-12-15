@@ -1,11 +1,10 @@
 package com.credorax;
 import java.io.*;
 import java.util.HashMap;
-import java.util.Scanner;
-import java.util.Stack;
 
 import com.credorax.model.Overlap;
 import com.credorax.model.Interval;
+import com.credorax.utils.EditFileUtils;
 
 /**
 * Created by Erik Feigin on 12/12/18.
@@ -13,17 +12,9 @@ import com.credorax.model.Interval;
 */
 public class CallsLogLoadAnalyser {
 
-	private static String SEPARATOR = "-";
-	private static String NUMBER_DELIMITER = ",";
-	private static String INTERVAL_DELIMTER_START = "[";
-	private static String INTERVAL_DELIMTER_END = "]";
+	private static String START_DURATION_SEPARATOR = "-";
 
-	private long counterOverlaps = 0;
-	private int maxOverlaps = 0;
 	private String sourceFilePath;
-	private String resultFilePath;
-	private String callsFinishTimesFilePath;
-	private Stack<Overlap> intervalsStack = new Stack<>();
 	HashMap<Long, Long> finishesCountMap = new HashMap<>();
 	Overlap maxOverlap = new Overlap(0,0,0);
 	Overlap currentOverlap = new Overlap(0,0,0);
@@ -31,38 +22,33 @@ public class CallsLogLoadAnalyser {
 	long currentMillisecond = 0;
 
 
-	public CallsLogLoadAnalyser(String sourceFilePath, String resultFilePath, String callsFinishTimesFilePath) {
+	public CallsLogLoadAnalyser(String sourceFilePath) {
 		this.sourceFilePath = sourceFilePath;
-		this.resultFilePath = resultFilePath;
-		this.callsFinishTimesFilePath = callsFinishTimesFilePath;
-
 	}
 	
 	//Retrieve next interval
 
 	public Interval getNextInterval(String line)  {
-		Interval nextInterval = new Interval(line.substring(0, line.indexOf(SEPARATOR)), line.substring(line.indexOf(SEPARATOR)+1));
+		Interval nextInterval = new Interval(line.substring(0, line.indexOf(START_DURATION_SEPARATOR)), line.substring(line.indexOf(START_DURATION_SEPARATOR)+1));
 		return nextInterval;
 	}
 	//Process calls log file and finding interval with maximum number of simultaneous calls
 	public void processCalls()  {
 
-		try(BufferedReader sourceReader = new BufferedReader(new FileReader(sourceFilePath));
-			BufferedReader finishTimesReader = new BufferedReader(new FileReader(callsFinishTimesFilePath));
-			PrintWriter finishTimesWriter = new PrintWriter(callsFinishTimesFilePath);
-			PrintWriter ResultWriter = new PrintWriter(resultFilePath)) {
+		try(BufferedReader sourceReader = new BufferedReader(new FileReader(sourceFilePath))) {
 
-			long nextFinishMillisecond = 0;
 			Interval currentInterval = new Interval(0, 0);
 			String nextLine;
-			String finishTimesNextLine;
-			Long finishCount;
 
 			if ((nextLine = sourceReader.readLine()) != null) {
 				currentInterval = getNextInterval(nextLine);
 				currentMillisecond = currentInterval.getStart();
-				//EditFileUtils.findRightOffsetAndInsert(callsFinishTimesFilePath, nextFinishMillisecond, (nextFinishMillisecond + "\n").getBytes());
+
+
+				//EditFileUtils.findRightOffsetAndInsert(currentInterval.getEnd());
 				incrementFinishTimeCounter(currentInterval.getEnd());
+
+
 				currentLineNumber++;
 				maxOverlap = new Overlap(currentInterval);
 				maxOverlap.incrementStrength();
@@ -71,12 +57,13 @@ public class CallsLogLoadAnalyser {
 
 			while ((nextLine = sourceReader.readLine()) != null) {
 
-				//processAllFinishedCallsTillSomeTime(currentMillisecond);
-
 				Interval nextInterval = getNextInterval(nextLine);
 				currentLineNumber++;
-				//EditFileUtils.findRightOffsetAndInsert(callsFinishTimesFilePath, currentInterval.getEnd(), (currentInterval.getEnd()+"\n").getBytes());
-				incrementFinishTimeCounter(currentInterval.getEnd());
+
+
+				//EditFileUtils.findRightOffsetAndInsert(nextInterval.getEnd());
+				incrementFinishTimeCounter(nextInterval.getEnd());
+
 
 				if (nextInterval.getStart() == currentOverlap.getStart()) {
 					if(nextInterval.getEnd() < currentOverlap.getEnd()){
@@ -84,7 +71,11 @@ public class CallsLogLoadAnalyser {
 					}
 					incrementCurrentOverlapStrength();
 				} else {// can't be less only bigger or equal
+
+
 					processAllFinishedCallsTillSomeTime(nextInterval.getStart());
+					//processAllFinishedCallsTillSomeTimeAtTextFile(nextInterval.getStart());
+
 
 					currentOverlap.setStart(nextInterval.getStart());
 
@@ -99,10 +90,6 @@ public class CallsLogLoadAnalyser {
 
 					currentMillisecond = nextInterval.getStart();
 				}
-
-				//if((finishTimesNextLine = finishTimesReader.readLine()) != null){
-				//	nextFinishMillisecond = Long.valueOf(finishTimesNextLine);
-				//}
 			}
 
 			System.out.println("Maximum " + maxOverlap);
@@ -125,6 +112,15 @@ public class CallsLogLoadAnalyser {
 			if (finishesCountMap.get(i) != null) {
 				currentOverlap.decrementByValue(finishesCountMap.get(i));
 				finishesCountMap.remove(i);
+			}
+		}
+	}
+
+	private void processAllFinishedCallsTillSomeTimeAtTextFile(long someTime) throws IOException {
+		Long countToReduce;
+		for(long i = currentMillisecond; i<=someTime; i++) {
+			if ((countToReduce = EditFileUtils.getFinishedCallsCounterAndRemoveFromFile(someTime)) != null) {
+				currentOverlap.decrementByValue(countToReduce);
 			}
 		}
 	}
