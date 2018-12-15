@@ -44,10 +44,9 @@ public class CallsLogLoadAnalyser {
 				currentInterval = getNextInterval(nextLine);
 				currentMillisecond = currentInterval.getStart();
 
-
-				//EditFileUtils.findRightOffsetAndInsert(currentInterval.getEnd());
-				incrementFinishTimeCounter(currentInterval.getEnd());
-
+				EditFileUtils.cleanFile();
+				EditFileUtils.findRightOffsetAndInsert(currentInterval.getEnd());
+				//incrementFinishTimeCounter(currentInterval.getEnd());
 
 				currentLineNumber++;
 				maxOverlap = new Overlap(currentInterval);
@@ -60,10 +59,8 @@ public class CallsLogLoadAnalyser {
 				Interval nextInterval = getNextInterval(nextLine);
 				currentLineNumber++;
 
-
-				//EditFileUtils.findRightOffsetAndInsert(nextInterval.getEnd());
-				incrementFinishTimeCounter(nextInterval.getEnd());
-
+				EditFileUtils.findRightOffsetAndInsert(nextInterval.getEnd());
+				//incrementFinishTimeCounter(nextInterval.getEnd());
 
 				if (nextInterval.getStart() == currentOverlap.getStart()) {
 					if(nextInterval.getEnd() < currentOverlap.getEnd()){
@@ -71,14 +68,11 @@ public class CallsLogLoadAnalyser {
 					}
 				} else {// can't be less only bigger or equal
 
-
-					Long nextFinish = processAllFinishedCallsTillStartOfInterval(nextInterval);
-					//Long nextFinish = processAllFinishedCallsTillSomeTimeAtTextFile(nextInterval);
+					//Long nextFinish = processAllFinishedCallsTillStartOfInterval(nextInterval);
+					Long nextFinish = processAllFinishedCallsTillSomeTimeAtTextFile(nextInterval);
 
 					currentOverlap.setStart(nextInterval.getStart());
-
 					currentOverlap.setEnd(nextFinish);
-
 					currentMillisecond = nextInterval.getStart();
 				}
 				incrementCurrentOverlapStrength();

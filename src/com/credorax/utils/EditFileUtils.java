@@ -1,9 +1,6 @@
 package com.credorax.utils;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.nio.channels.FileChannel;
 
 /**
@@ -13,6 +10,10 @@ public class EditFileUtils {
 
     private static String FINISH_COUNT_SEPARATOR = ":";
     private static String CALLS_FINISH_TIMES_FILE_PATH = "resources/calls_finish_times.txt";
+
+    static public void cleanFile() throws IOException {
+        new PrintWriter(new File(CALLS_FINISH_TIMES_FILE_PATH)).close();
+    }
 
     static public void findRightOffsetAndInsert(long targetMillisecond) throws IOException {
         insert(findOffset(targetMillisecond), targetMillisecond);
@@ -52,7 +53,6 @@ public class EditFileUtils {
             currentLineStartPointer = r.getFilePointer();
             if((finishTimeLine = r.readLine()) == null
                     || Long.valueOf(finishTimeLine.substring(0, finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR))) == targetMillisecond){
-
 
                 sourceChannel.transferTo(currentLineStartPointer, (fileSize - currentLineStartPointer), targetChannel);
                 sourceChannel.truncate(currentLineStartPointer);
