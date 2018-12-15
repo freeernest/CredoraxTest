@@ -45,7 +45,7 @@ public class CallsLogLoadAnalyser {
 				currentMillisecond = currentInterval.getStart();
 
 				EditFileUtils.cleanFile();
-				EditFileUtils.findRightOffsetAndInsert(currentInterval.getEnd());
+				EditFileUtils.findRightOffsetAndIncrement(currentInterval.getEnd());
 				//incrementFinishTimeCounter(currentInterval.getEnd());
 
 				currentLineNumber++;
@@ -59,7 +59,7 @@ public class CallsLogLoadAnalyser {
 				Interval nextInterval = getNextInterval(nextLine);
 				currentLineNumber++;
 
-				EditFileUtils.findRightOffsetAndInsert(nextInterval.getEnd());
+				EditFileUtils.findRightOffsetAndIncrement(nextInterval.getEnd());
 				//incrementFinishTimeCounter(nextInterval.getEnd());
 
 				if (nextInterval.getStart() == currentOverlap.getStart()) {
@@ -94,15 +94,14 @@ public class CallsLogLoadAnalyser {
 	}
 
 	private long processAllFinishedCallsTillStartOfInterval(Interval interval) {
-		long i;
-		for(i = currentMillisecond; i<=interval.getStart(); i++) {
+		for(long i = currentMillisecond; i<=interval.getStart(); i++) {
 			if (finishesCountMap.get(i) != null) {
 				currentOverlap.decrementByValue(finishesCountMap.get(i));
 				finishesCountMap.remove(i);
 			}
 		}
 
-		for(long j = i; j<=interval.getEnd(); j++) {
+		for(long j = interval.getStart()+1; j<=interval.getEnd(); j++) {
 			if (finishesCountMap.get(j) != null) {
 				return j;
 			}
@@ -111,15 +110,11 @@ public class CallsLogLoadAnalyser {
 	}
 
 	private Long processAllFinishedCallsTillSomeTimeAtTextFile(Interval interval) throws IOException {
-		Long countToReduce;
-		long i;
-		for(i = currentMillisecond; i<=interval.getStart(); i++) {
-			if ((countToReduce = EditFileUtils.getFinishedCallsCounterAndRemoveFromFile(interval.getStart())) != null) {
-				currentOverlap.decrementByValue(countToReduce);
-			}
+		for(long i = currentMillisecond; i<=interval.getStart(); i++) {
+			currentOverlap.decrementByValue(EditFileUtils.getFinishedCallsCounterAndRemoveFromFile(i));
 		}
 
-		for(long j = i; j<=interval.getEnd(); j++) {
+		for(long j = interval.getStart()+1; j<=interval.getEnd(); j++) {
 			if ( EditFileUtils.getFinishedCallsCounter(j)!= 0) {
 				return j;
 			}

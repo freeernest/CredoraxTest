@@ -15,8 +15,8 @@ public class EditFileUtils {
         new PrintWriter(new File(CALLS_FINISH_TIMES_FILE_PATH)).close();
     }
 
-    static public void findRightOffsetAndInsert(long targetMillisecond) throws IOException {
-        insert(findOffset(targetMillisecond), targetMillisecond);
+    static public void findRightOffsetAndIncrement(long targetMillisecond) throws IOException {
+        increment(findOffset(targetMillisecond), targetMillisecond);
     }
 
 
@@ -42,37 +42,34 @@ public class EditFileUtils {
         RandomAccessFile r = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH), "rw");
         RandomAccessFile rtemp = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH + "~"), "rw");
         long fileSize = r.length();
-        FileChannel sourceChannel = r.getChannel();
-        FileChannel targetChannel = rtemp.getChannel();
 
-        r.seek(0);
-        String finishTimeLine;
-        long currentLineStartPointer;
+        try(FileChannel sourceChannel = r.getChannel(); FileChannel targetChannel = rtemp.getChannel()) {
 
-        do {
-            currentLineStartPointer = r.getFilePointer();
-            if((finishTimeLine = r.readLine()) == null
-                    || Long.valueOf(finishTimeLine.substring(0, finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR))) == targetMillisecond){
+            r.seek(0);
+            String finishTimeLine;
+            long currentLineStartPointer;
 
-                sourceChannel.transferTo(currentLineStartPointer, (fileSize - currentLineStartPointer), targetChannel);
-                sourceChannel.truncate(currentLineStartPointer);
-                r.seek(currentLineStartPointer);
-                long newOffset = r.getFilePointer();
-                targetChannel.position(0L);
-                sourceChannel.transferFrom(targetChannel, newOffset, (fileSize - currentLineStartPointer));
-                sourceChannel.close();
-                targetChannel.close();
+            do {
+                currentLineStartPointer = r.getFilePointer();
+                if ((finishTimeLine = r.readLine()) == null
+                        || Long.valueOf(finishTimeLine.substring(0, finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR))) == targetMillisecond) {
 
-                return Long.valueOf(finishTimeLine.substring(finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR) + 1));
-            }
-        } while(r.getFilePointer() < fileSize);
+                    sourceChannel.transferTo(r.getFilePointer(), (fileSize - r.getFilePointer()), targetChannel);
+                    sourceChannel.truncate(currentLineStartPointer);
+                    //r.seek(currentLineStartPointer);
+                    targetChannel.position(0L);
+                    sourceChannel.transferFrom(targetChannel, r.getFilePointer(), (fileSize - r.getFilePointer()));
+
+                    return Long.valueOf(finishTimeLine.substring(finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR) + 1));
+                }
+            } while (r.getFilePointer() < fileSize);
+        }
 
         return 0;
     }
 
     static public long getFinishedCallsCounter(long targetMillisecond) throws IOException {
         RandomAccessFile r = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH), "rw");
-        RandomAccessFile rtemp = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH + "~"), "rw");
         long fileSize = r.length();
 
         r.seek(0);
@@ -88,31 +85,65 @@ public class EditFileUtils {
         return 0;
     }
 
-    static public void insert(long offset, long targetMillisecond) throws IOException {
+    static public void increment(long offset, long targetMillisecond) throws IOException {
         RandomAccessFile r = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH), "rw");
-        RandomAccessFile rtemp = new RandomAccessFile(new File(CALLS_FINISH_TIMES_FILE_PATH + "~"), "rw");
+        File tempFile = new File(CALLS_FINISH_TIMES_FILE_PATH + "~");
+        RandomAccessFile rtemp = new RandomAccessFile(tempFile, "rw");
+        new PrintWriter(tempFile).close();
         long fileSize = r.length();
-        FileChannel sourceChannel = r.getChannel();
-        FileChannel targetChannel = rtemp.getChannel();
-        sourceChannel.transferTo(offset, (fileSize - offset), targetChannel);
-        sourceChannel.truncate(offset);
-        r.seek(offset);
 
-        byte[] newContent;
-        String finishTime;
-        if((finishTime = r.readLine()) != null){
-            String finishTimeCounter = finishTime.substring(finishTime.indexOf(FINISH_COUNT_SEPARATOR)+1);
-            newContent = new StringBuilder().append(finishTime.substring(0, finishTime.indexOf(FINISH_COUNT_SEPARATOR)+1)).append((Long.valueOf(finishTimeCounter) + 1)).append("\n").toString().getBytes();
-        } else {
-            newContent = new StringBuilder().append(targetMillisecond).append(FINISH_COUNT_SEPARATOR).append("1\n").toString().getBytes();
+        try(FileChannel sourceChannel = r.getChannel(); FileChannel targetChannel = rtemp.getChannel()) {
+
+            r.seek(offset);
+
+            byte[] newContent;
+            String finishTime;
+            if ((finishTime = r.readLine()) != null) {
+                if(Long.valueOf(finishTime.substring(0, finishTime.indexOf(FINISH_COUNT_SEPARATOR))) == targetMillisecond) {
+                    String finishTimeCounter = finishTime.substring(finishTime.indexOf(FINISH_COUNT_SEPARATOR) + 1);
+                    newContent = new StringBuilder()
+                            .append(finishTime.substring(0, finishTime.indexOf(FINISH_COUNT_SEPARATOR) + 1))
+                            .append((Long.valueOf(finishTimeCounter) + 1))
+                            .append("\n")
+                            .toString()
+                            .getBytes();
+
+                    sourceChannel.transferTo(r.getFilePointer(), (fileSize - r.getFilePointer()), targetChannel);
+                    targetChannel.position(0L);
+                    sourceChannel.truncate(offset);
+                    r.write(newContent);
+                    sourceChannel.transferFrom(targetChannel, offset + newContent.length + finishTime.getBytes().length, (fileSize - offset - finishTime.getBytes().length));
+                } else {
+                    newContent = new StringBuilder()
+                            .append(targetMillisecond)
+                            .append(FINISH_COUNT_SEPARATOR)
+                            .append("1\n")
+                            .toString()
+                            .getBytes();
+                    sourceChannel.transferTo(offset, (fileSize - offset), targetChannel);
+                    targetChannel.position(0L);
+                    sourceChannel.truncate(offset);
+                    r.write(newContent);
+                    sourceChannel.transferFrom(targetChannel, r.getFilePointer(), (fileSize - offset));
+                }
+            } else {
+                newContent = new StringBuilder()
+                        .append(targetMillisecond)
+                        .append(FINISH_COUNT_SEPARATOR)
+                        .append("1\n")
+                        .toString()
+                        .getBytes();
+
+                sourceChannel.transferTo(r.getFilePointer(), (fileSize - r.getFilePointer()), targetChannel);
+                targetChannel.position(0L);
+                sourceChannel.truncate(offset);
+                r.write(newContent);
+                sourceChannel.transferFrom(targetChannel, 0, fileSize);
+            }
+
         }
 
-        r.write(newContent);
-        long newOffset = r.getFilePointer();
-        targetChannel.position(0L);
-        sourceChannel.transferFrom(targetChannel, newOffset, (fileSize - offset));
-        sourceChannel.close();
-        targetChannel.close();
+        tempFile.delete();
     }
 
 }
