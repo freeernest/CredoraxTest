@@ -1,6 +1,6 @@
 package com.credorax;
 import java.io.*;
-import java.util.HashMap;
+import java.util.Properties;
 
 import com.credorax.model.Overlap;
 import com.credorax.model.Interval;
@@ -15,15 +15,34 @@ public class CallsLogLoadAnalyser {
 	private static String START_DURATION_SEPARATOR = "-";
 
 	private String sourceFilePath;
-	HashMap<Long, Long> finishesCountMap = new HashMap<>();
 	Overlap maxOverlap = new Overlap(0,0,0);
 	Overlap currentOverlap = new Overlap(0,0,0);
 	long currentLineNumber = 0;
 	long currentMillisecond = 0;
+	Properties props = new Properties();
+	CashStrategyInterface cashStrategy;
 
 
-	public CallsLogLoadAnalyser(String sourceFilePath) {
+	public CallsLogLoadAnalyser(String sourceFilePath) throws IOException {
 		this.sourceFilePath = sourceFilePath;
+		initCashStrategy();
+	}
+
+	private void initCashStrategy() throws IOException {
+		try {
+			String path = getClass().getProtectionDomain().getCodeSource().getLocation().toString().substring(6);
+			FileInputStream fis = new FileInputStream(new File( path + "/application.properties"));
+			props.load(fis);
+			fis.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.out.println("Properties file was not found!!!");
+		}
+		boolean useHashMap = Boolean.valueOf(props.get("useHashMap").toString());
+		cashStrategy = useHashMap ? new HashMapStrategy() : new TextFileStrategy();
+		if(!useHashMap){
+			EditFileUtils.cleanFile();
+		}
 	}
 	
 	//Retrieve next interval
@@ -44,9 +63,7 @@ public class CallsLogLoadAnalyser {
 				currentInterval = getNextInterval(nextLine);
 				currentMillisecond = currentInterval.getStart();
 
-				EditFileUtils.cleanFile();
-				EditFileUtils.findRightOffsetAndIncrement(currentInterval.getEnd());
-				//incrementFinishTimeCounter(currentInterval.getEnd());
+				cashStrategy.incrementFinishTimeCounter(currentInterval.getEnd(), currentInterval);
 
 				currentLineNumber++;
 				maxOverlap = new Overlap(currentInterval);
@@ -59,8 +76,7 @@ public class CallsLogLoadAnalyser {
 				Interval nextInterval = getNextInterval(nextLine);
 				currentLineNumber++;
 
-				EditFileUtils.findRightOffsetAndIncrement(nextInterval.getEnd());
-				//incrementFinishTimeCounter(nextInterval.getEnd());
+				cashStrategy.incrementFinishTimeCounter(nextInterval.getEnd(), nextInterval);
 
 				if (nextInterval.getStart() == currentOverlap.getStart()) {
 					if(nextInterval.getEnd() < currentOverlap.getEnd()){
@@ -68,8 +84,7 @@ public class CallsLogLoadAnalyser {
 					}
 				} else {// can't be less only bigger or equal
 
-					//Long nextFinish = processAllFinishedCallsTillStartOfInterval(nextInterval);
-					Long nextFinish = processAllFinishedCallsTillSomeTimeAtTextFile(nextInterval);
+					Long nextFinish = cashStrategy.processAllFinishedCallsTillStartOfInterval(nextInterval, currentOverlap, currentMillisecond);
 
 					currentOverlap.setStart(nextInterval.getStart());
 					currentOverlap.setEnd(nextFinish);
@@ -93,36 +108,6 @@ public class CallsLogLoadAnalyser {
         }
 	}
 
-	private long processAllFinishedCallsTillStartOfInterval(Interval interval) {
-		for(long i = currentMillisecond; i<=interval.getStart(); i++) {
-			if (finishesCountMap.get(i) != null) {
-				currentOverlap.decrementByValue(finishesCountMap.get(i));
-				finishesCountMap.remove(i);
-			}
-		}
 
-		for(long j = interval.getStart()+1; j<=interval.getEnd(); j++) {
-			if (finishesCountMap.get(j) != null) {
-				return j;
-			}
-		}
-		return interval.getEnd();
-	}
 
-	private Long processAllFinishedCallsTillSomeTimeAtTextFile(Interval interval) throws IOException {
-		for(long i = currentMillisecond; i<=interval.getStart(); i++) {
-			currentOverlap.decrementByValue(EditFileUtils.getFinishedCallsCounterAndRemoveFromFile(i));
-		}
-
-		for(long j = interval.getStart()+1; j<=interval.getEnd(); j++) {
-			if ( EditFileUtils.getFinishedCallsCounter(j)!= 0) {
-				return j;
-			}
-		}
-		return interval.getEnd();
-	}
-
-	private void incrementFinishTimeCounter(Long finishTime) {
-		finishesCountMap.put(finishTime, finishesCountMap.getOrDefault(finishTime, 0L)+1);
-	}
 }

@@ -15,7 +15,7 @@ public class EditFileUtils {
         new PrintWriter(new File(CALLS_FINISH_TIMES_FILE_PATH)).close();
     }
 
-    static public void findRightOffsetAndIncrement(long targetMillisecond) throws IOException {
+    static public void incrementFinishTimeCounter(long targetMillisecond) throws IOException {
         increment(findOffset(targetMillisecond), targetMillisecond);
     }
 
@@ -60,7 +60,8 @@ public class EditFileUtils {
                     targetChannel.position(0L);
                     sourceChannel.transferFrom(targetChannel, r.getFilePointer(), (fileSize - r.getFilePointer()));
 
-                    return Long.valueOf(finishTimeLine.substring(finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR) + 1));
+                    return finishTimeLine == null ? 0 : Long.valueOf(finishTimeLine.substring(finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR) + 1));
+
                 }
             } while (r.getFilePointer() < fileSize);
         }
@@ -76,8 +77,9 @@ public class EditFileUtils {
         String finishTimeLine;
 
         do {
-            if((finishTimeLine = r.readLine()) == null
-                    || Long.valueOf(finishTimeLine.substring(0, finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR))) == targetMillisecond){
+            if((finishTimeLine = r.readLine()) == null){
+                return 0;
+            }else if(Long.valueOf(finishTimeLine.substring(0, finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR))) == targetMillisecond){
                 return Long.valueOf(finishTimeLine.substring(finishTimeLine.indexOf(FINISH_COUNT_SEPARATOR) + 1));
             }
         } while(r.getFilePointer() < fileSize);
